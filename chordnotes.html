@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChordNotes — Record</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --purple: #534AB7;
+    --purple-light: #EEEDFE;
+    --purple-mid: #AFA9EC;
+    --purple-dark: #3C3489;
+    --red: #E24B4A;
+    --green: #1D9E75;
+    --bg: #0E0E12;
+    --surface: #17171E;
+    --surface2: #1F1F28;
+    --border: rgba(255,255,255,0.07);
+    --text: #F0EFF8;
+    --text-muted: #7A7990;
+    --text-dim: #3E3D52;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .logo { font-family: var(--sans); font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+  .logo span { color: var(--purple-mid); }
+  .nav-tabs { display: flex; gap: 2px; background: var(--surface); border-radius: 10px; padding: 3px; }
+  .nav-tab {
+    padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: var(--text-muted); cursor: pointer; transition: all 0.15s; border: none; background: none;
+  }
+  .nav-tab.active { background: var(--surface2); color: var(--text); }
+  .nav-tab:hover:not(.active) { color: var(--text); }
+  .settings-btn {
+    width: 36px; height: 36px; border-radius: 50%; background: var(--surface);
+    border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 16px; color: var(--text-muted);
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── LEFT PANEL ── */
+  .left-panel {
+    width: 260px; flex-shrink: 0; border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 24px 0;
+  }
+  .panel-section { padding: 0 20px; margin-bottom: 28px; }
+  .panel-label {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 12px;
+  }
+  .mode-toggle {
+    display: flex; background: var(--surface); border-radius: 9px; padding: 3px; gap: 2px;
+  }
+  .mode-opt {
+    flex: 1; text-align: center; padding: 8px 6px; border-radius: 7px;
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+    cursor: pointer; transition: all 0.15s; border: none; background: none;
+  }
+  .mode-opt.active { background: var(--surface2); color: var(--text); }
+
+  .detect-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+  }
+  .detect-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .detect-row:last-child { margin-bottom: 0; }
+  .detect-key { font-size: 12px; color: var(--text-muted); }
+  .detect-val { font-family: var(--mono); font-size: 13px; color: var(--text); font-weight: 500; }
+  .detect-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 6px; }
+
+  .recordings-list { display: flex; flex-direction: column; gap: 4px; }
+  .recording-item {
+    padding: 10px 12px; border-radius: 9px; cursor: pointer;
+    transition: background 0.12s; display: flex; align-items: center; gap: 10px;
+  }
+  .recording-item:hover { background: var(--surface); }
+  .recording-item.active { background: var(--surface2); }
+  .rec-icon { width: 30px; height: 30px; border-radius: 7px; background: var(--purple); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .rec-info { min-width: 0; }
+  .rec-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rec-meta { font-size: 11px; color: var(--text-muted); margin-top: 1px; font-family: var(--mono); }
+
+  /* ── CENTER ── */
+  .center { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  /* Waveform */
+  .waveform-container {
+    flex: 1; position: relative; overflow: hidden; cursor: pointer;
+    background: var(--surface);
+  }
+  #waveformCanvas { display: block; width: 100%; height: 100%; }
+
+  .waveform-overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+  .record-cue {
+    font-size: 14px; color: var(--text-dim); font-family: var(--mono);
+    letter-spacing: 0.05em; transition: opacity 0.3s;
+  }
+
+  /* Playhead */
+  .playhead-line {
+    position: absolute; top: 0; bottom: 0; width: 2px; background: var(--purple);
+    pointer-events: none; display: none;
+  }
+
+  /* Time ruler */
+  .time-ruler {
+    height: 28px; background: var(--surface); border-top: 1px solid var(--border);
+    position: relative; overflow: hidden; flex-shrink: 0;
+  }
+  #rulerCanvas { display: block; width: 100%; height: 100%; }
+
+  /* Controls bar */
+  .controls-bar {
+    padding: 20px 32px; border-top: 1px solid var(--border);
+    display: flex; align-items: center; gap: 24px; flex-shrink: 0;
+    background: var(--bg);
+  }
+  .timer {
+    font-family: var(--mono); font-size: 32px; font-weight: 300;
+    color: var(--text); letter-spacing: 0.04em; min-width: 110px;
+  }
+  .timer.recording { color: var(--red); }
+
+  .controls-center { display: flex; align-items: center; gap: 14px; flex: 1; justify-content: center; }
+
+  .ctrl-btn {
+    width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--surface); display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 18px; color: var(--text-muted); transition: all 0.15s;
+  }
+  .ctrl-btn:hover { background: var(--surface2); color: var(--text); border-color: rgba(255,255,255,0.15); }
+  .ctrl-btn:disabled { opacity: 0.3; cursor: default; }
+
+  .rec-btn {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: var(--purple); border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.18s; box-shadow: 0 0 0 0 rgba(83,74,183,0);
+  }
+  .rec-btn:hover { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(83,74,183,0.15); }
+  .rec-btn.recording {
+    background: var(--red);
+    box-shadow: 0 0 0 8px rgba(226,75,74,0.15);
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 8px rgba(226,75,74,0.15); }
+    50% { box-shadow: 0 0 0 16px rgba(226,75,74,0.05); }
+  }
+  .rec-dot { width: 22px; height: 22px; border-radius: 50%; background: white; transition: border-radius 0.2s; }
+  .rec-btn.recording .rec-dot { border-radius: 5px; width: 20px; height: 20px; }
+
+  .bookmark-btn {
+    display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+    border-radius: 10px; border: 1px solid var(--border); background: var(--surface);
+    cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-muted);
+    transition: all 0.15s; font-family: var(--sans);
+  }
+  .bookmark-btn:hover { background: var(--surface2); color: var(--text); }
+  .bookmark-btn:disabled { opacity: 0.3; cursor: default; }
+
+  /* ── RIGHT PANEL ── */
+  .right-panel {
+    width: 260px; flex-shrink: 0; border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 24px 0; overflow-y: auto;
+  }
+  .bookmarks-list { display: flex; flex-direction: column; gap: 4px; }
+  .bookmark-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+    border-radius: 9px; cursor: pointer; transition: background 0.12s;
+  }
+  .bookmark-item:hover { background: var(--surface); }
+  .bm-marker {
+    width: 3px; height: 28px; border-radius: 2px; background: var(--red); flex-shrink: 0;
+  }
+  .bm-info { flex: 1; min-width: 0; }
+  .bm-name { font-size: 13px; font-weight: 500; color: var(--text); }
+  .bm-time { font-size: 11px; font-family: var(--mono); color: var(--text-muted); margin-top: 2px; }
+  .bm-delete {
+    width: 24px; height: 24px; border-radius: 50%; background: none; border: none;
+    color: var(--text-dim); cursor: pointer; font-size: 14px; display: flex;
+    align-items: center; justify-content: center; opacity: 0; transition: opacity 0.12s;
+  }
+  .bookmark-item:hover .bm-delete { opacity: 1; }
+  .bm-delete:hover { color: var(--red); }
+
+  .empty-state {
+    padding: 20px; text-align: center; color: var(--text-dim); font-size: 13px; line-height: 1.6;
+  }
+
+  /* Status pill */
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);
+  }
+  .status-pill.recording { background: rgba(226,75,74,0.12); border-color: rgba(226,75,74,0.3); color: #F08080; }
+  .status-pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .status-pill.recording .status-pill-dot { animation: blink 1s ease-in-out infinite; }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+  /* Permission error */
+  .permission-banner {
+    background: rgba(226,75,74,0.1); border: 1px solid rgba(226,75,74,0.25);
+    border-radius: 10px; padding: 12px 16px; margin: 16px;
+    font-size: 13px; color: #F08080; display: none; line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo"><span>Chord</span>Notes</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active">Record</button>
+    <button class="nav-tab">Edit</button>
+    <button class="nav-tab">Browse</button>
+    <button class="nav-tab">Share</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div id="statusPill" class="status-pill"><span class="status-pill-dot"></span>Ready</div>
+    <div class="settings-btn">⚙</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- LEFT PANEL -->
+  <div class="left-panel">
+    <div class="panel-section">
+      <div class="panel-label">Input mode</div>
+      <div class="mode-toggle">
+        <button class="mode-opt active" onclick="setMode('audio',this)">🎤 Audio</button>
+        <button class="mode-opt" onclick="setMode('video',this)">📹 Video</button>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-label">Live detection</div>
+      <div class="detect-card">
+        <div class="detect-row">
+          <span class="detect-key"><span class="detect-dot"></span>Key</span>
+          <span class="detect-val" id="detectedKey">— —</span>
+        </div>
+        <div class="detect-row">
+          <span class="detect-key"><span class="detect-dot"></span>Tempo</span>
+          <span class="detect-val" id="detectedTempo">— bpm</span>
+        </div>
+        <div class="detect-row">
+          <span class="detect-key"><span class="detect-dot"></span>Level</span>
+          <span class="detect-val" id="detectedLevel">— dB</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-section" style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="panel-label">Recordings</div>
+      <div class="recordings-list" id="recordingsList">
+        <div class="empty-state">No recordings yet.<br>Hit record to start.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center">
+    <div id="permissionBanner" class="permission-banner">
+      Microphone access was denied. Please allow microphone access in your browser settings and reload the page.
+    </div>
+
+    <!-- Waveform -->
+    <div class="waveform-container" id="waveformContainer">
+      <canvas id="waveformCanvas"></canvas>
+      <div class="playhead-line" id="playheadLine"></div>
+      <div class="waveform-overlay">
+        <div class="record-cue" id="recordCue">press record to begin</div>
+      </div>
+    </div>
+
+    <!-- Ruler -->
+    <div class="time-ruler">
+      <canvas id="rulerCanvas"></canvas>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls-bar">
+      <div class="timer" id="timerDisplay">0:00.0</div>
+
+      <div class="controls-center">
+        <button class="ctrl-btn" id="rewindBtn" onclick="rewindRecording()" disabled title="Rewind">⏮</button>
+        <button class="ctrl-btn" id="pauseBtn" onclick="pauseRecording()" disabled title="Pause">⏸</button>
+        <button class="rec-btn" id="recBtn" onclick="toggleRecording()">
+          <div class="rec-dot" id="recDot"></div>
+        </button>
+        <button class="ctrl-btn" id="playBtn" onclick="playRecording()" disabled title="Play">▶</button>
+        <button class="bookmark-btn" id="bookmarkBtn" onclick="addBookmark()" disabled>
+          🔖 Add bookmark
+        </button>
+      </div>
+
+      <div style="min-width:110px;display:flex;justify-content:flex-end;">
+        <button onclick="downloadRecording()" id="downloadBtn"
+          style="padding:9px 16px;border-radius:9px;border:1px solid var(--border);background:var(--surface);
+                 color:var(--text-muted);font-size:13px;font-weight:500;cursor:pointer;font-family:var(--sans);
+                 transition:all 0.15s;opacity:0.4;" disabled>
+          ↓ Save
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="panel-section" style="flex:1;display:flex;flex-direction:column;">
+      <div class="panel-label">Bookmarks</div>
+      <div class="bookmarks-list" id="bookmarksList">
+        <div class="empty-state">Bookmarks appear here.<br>Add them while recording.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── State ──
+let mediaRecorder = null;
+let audioContext = null;
+let analyser = null;
+let sourceNode = null;
+let stream = null;
+let chunks = [];
+let isRecording = false;
+let isPaused = false;
+let recordingStartTime = 0;
+let pausedElapsed = 0;
+let timerInterval = null;
+let animFrame = null;
+let bookmarks = [];
+let recordings = [];
+let currentBlob = null;
+let audioPlayer = null;
+let isPlaying = false;
+
+// Waveform data
+let liveBarData = []; // during recording: array of amplitude values
+let frozenBarData = []; // after recording stops
+
+// Canvas refs
+const waveCanvas = document.getElementById('waveformCanvas');
+const waveCtx = waveCanvas.getContext('2d');
+const rulerCanvas = document.getElementById('rulerCanvas');
+const rulerCtx = rulerCanvas.getContext('2d');
+
+// ── Canvas resize ──
+function resizeCanvases() {
+  const container = document.getElementById('waveformContainer');
+  waveCanvas.width = container.clientWidth * devicePixelRatio;
+  waveCanvas.height = container.clientHeight * devicePixelRatio;
+  waveCanvas.style.width = container.clientWidth + 'px';
+  waveCanvas.style.height = container.clientHeight + 'px';
+  waveCtx.scale(devicePixelRatio, devicePixelRatio);
+
+  rulerCanvas.width = rulerCanvas.parentElement.clientWidth * devicePixelRatio;
+  rulerCanvas.height = rulerCanvas.parentElement.clientHeight * devicePixelRatio;
+  rulerCanvas.style.width = rulerCanvas.parentElement.clientWidth + 'px';
+  rulerCanvas.style.height = rulerCanvas.parentElement.clientHeight + 'px';
+  rulerCtx.scale(devicePixelRatio, devicePixelRatio);
+
+  drawWaveform();
+}
+window.addEventListener('resize', resizeCanvases);
+setTimeout(resizeCanvases, 50);
+
+// ── Draw waveform ──
+function drawWaveform() {
+  const W = waveCanvas.clientWidth;
+  const H = waveCanvas.clientHeight;
+  waveCtx.clearRect(0, 0, W, H);
+
+  const data = isRecording ? liveBarData : frozenBarData;
+  if (!data.length) return;
+
+  const numBars = data.length;
+  const barW = Math.max(2, (W / numBars) - 1);
+  const gap = Math.max(1, (W - numBars * barW) / numBars);
+
+  data.forEach((amp, i) => {
+    const x = i * (barW + gap);
+    const barH = Math.max(2, amp * (H * 0.85));
+    const y = (H - barH) / 2;
+
+    // Color: bookmarked bars get a tint
+    waveCtx.fillStyle = '#AFA9EC';
+    waveCtx.beginPath();
+    waveCtx.roundRect(x, y, barW, barH, 2);
+    waveCtx.fill();
+  });
+
+  // Draw bookmark lines
+  bookmarks.forEach(bm => {
+    const frac = bm.elapsed / (getElapsed() || 1);
+    const x = frac * W;
+    waveCtx.save();
+    waveCtx.strokeStyle = '#E24B4A';
+    waveCtx.lineWidth = 2;
+    waveCtx.setLineDash([]);
+    waveCtx.beginPath();
+    waveCtx.moveTo(x, 8);
+    waveCtx.lineTo(x, H - 8);
+    waveCtx.stroke();
+
+    // Label
+    waveCtx.fillStyle = '#E24B4A';
+    waveCtx.font = '10px DM Mono, monospace';
+    waveCtx.fillText(bm.label, x + 4, 20);
+    waveCtx.restore();
+  });
+}
+
+// ── Draw ruler ──
+function drawRuler(totalSecs) {
+  const W = rulerCanvas.clientWidth;
+  const H = rulerCanvas.clientHeight;
+  rulerCtx.clearRect(0, 0, W, H);
+
+  if (totalSecs <= 0) return;
+
+  rulerCtx.fillStyle = '#3E3D52';
+  rulerCtx.font = '10px DM Mono, monospace';
+
+  const step = totalSecs > 60 ? 10 : totalSecs > 20 ? 5 : 1;
+  for (let s = 0; s <= totalSecs; s += step) {
+    const x = (s / totalSecs) * W;
+    rulerCtx.beginPath();
+    rulerCtx.strokeStyle = '#2A293A';
+    rulerCtx.lineWidth = 1;
+    rulerCtx.moveTo(x, 0);
+    rulerCtx.lineTo(x, H);
+    rulerCtx.stroke();
+
+    const label = formatTime(s);
+    rulerCtx.fillText(label, x + 3, H - 6);
+  }
+}
+
+// ── Live animation loop ──
+let sampleBuffer = [];
+const BARS_TARGET = 120;
+
+function animate() {
+  if (!isRecording || isPaused) return;
+  animFrame = requestAnimationFrame(animate);
+
+  const dataArr = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteTimeDomainData(dataArr);
+
+  // RMS amplitude
+  let sum = 0;
+  for (let i = 0; i < dataArr.length; i++) {
+    const v = (dataArr[i] - 128) / 128;
+    sum += v * v;
+  }
+  const rms = Math.sqrt(sum / dataArr.length);
+  sampleBuffer.push(rms);
+
+  // Accumulate samples into bars
+  const elapsed = getElapsed();
+  const targetBars = Math.min(BARS_TARGET, Math.max(20, Math.floor(elapsed * 4)));
+  const samplesPerBar = Math.max(1, Math.floor(sampleBuffer.length / targetBars));
+
+  liveBarData = [];
+  for (let i = 0; i < sampleBuffer.length; i += samplesPerBar) {
+    const slice = sampleBuffer.slice(i, i + samplesPerBar);
+    const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+    liveBarData.push(Math.min(1, avg * 6 + 0.05));
+  }
+
+  // Level meter
+  const db = rms > 0 ? Math.round(20 * Math.log10(rms)) : -60;
+  document.getElementById('detectedLevel').textContent = db + ' dB';
+
+  drawWaveform();
+  drawRuler(elapsed);
+}
+
+// ── Timer ──
+function getElapsed() {
+  if (!isRecording) return pausedElapsed;
+  return pausedElapsed + (Date.now() - recordingStartTime) / 1000;
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m + ':' + String(sec).padStart(2, '0');
+}
+function formatTimeFull(s) {
+  const m = Math.floor(s / 60);
+  const sec = (s % 60).toFixed(1);
+  return m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
+function startTimer() {
+  timerInterval = setInterval(() => {
+    const el = getElapsed();
+    document.getElementById('timerDisplay').textContent = formatTimeFull(el);
+  }, 100);
+}
+function stopTimer() { clearInterval(timerInterval); }
+
+// ── Recording ──
+async function toggleRecording() {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    await startRecording();
+  }
+}
+
+async function startRecording() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  } catch (e) {
+    document.getElementById('permissionBanner').style.display = 'block';
+    return;
+  }
+
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = audioContext.createAnalyser();
+  analyser.fftSize = 512;
+  sourceNode = audioContext.createMediaStreamSource(stream);
+  sourceNode.connect(analyser);
+
+  mediaRecorder = new MediaRecorder(stream);
+  chunks = [];
+  mediaRecorder.ondataavailable = e => chunks.push(e.data);
+  mediaRecorder.onstop = onRecordingStop;
+  mediaRecorder.start(100);
+
+  isRecording = true;
+  isPaused = false;
+  recordingStartTime = Date.now();
+  pausedElapsed = 0;
+  liveBarData = [];
+  sampleBuffer = [];
+  bookmarks = [];
+
+  // UI
+  document.getElementById('recBtn').classList.add('recording');
+  document.getElementById('timerDisplay').classList.add('recording');
+  document.getElementById('pauseBtn').disabled = false;
+  document.getElementById('bookmarkBtn').disabled = false;
+  document.getElementById('recordCue').style.opacity = '0';
+  setStatus('recording', '● Recording');
+  startTimer();
+  animate();
+
+  // Simulate key/tempo detection after 2s
+  setTimeout(() => {
+    if (isRecording) {
+      const keys = ['A min','C maj','G maj','D min','E min','F maj','B♭ maj'];
+      const tempos = [78, 85, 92, 94, 100, 108, 112, 120];
+      document.getElementById('detectedKey').textContent = keys[Math.floor(Math.random()*keys.length)];
+      document.getElementById('detectedTempo').textContent = tempos[Math.floor(Math.random()*tempos.length)] + ' bpm';
+    }
+  }, 2000);
+}
+
+function stopRecording() {
+  if (!mediaRecorder) return;
+  mediaRecorder.stop();
+  stream.getTracks().forEach(t => t.stop());
+  cancelAnimationFrame(animFrame);
+  stopTimer();
+
+  isRecording = false;
+  frozenBarData = [...liveBarData];
+
+  document.getElementById('recBtn').classList.remove('recording');
+  document.getElementById('timerDisplay').classList.remove('recording');
+  document.getElementById('pauseBtn').disabled = true;
+  document.getElementById('bookmarkBtn').disabled = true;
+  setStatus('ready', 'Ready');
+}
+
+function pauseRecording() {
+  if (!isRecording) return;
+  if (!isPaused) {
+    mediaRecorder.pause();
+    isPaused = true;
+    pausedElapsed += (Date.now() - recordingStartTime) / 1000;
+    cancelAnimationFrame(animFrame);
+    stopTimer();
+    document.getElementById('pauseBtn').textContent = '▶';
+    setStatus('ready', 'Paused');
+  } else {
+    mediaRecorder.resume();
+    isPaused = false;
+    recordingStartTime = Date.now();
+    startTimer();
+    animate();
+    document.getElementById('pauseBtn').textContent = '⏸';
+    setStatus('recording', '● Recording');
+  }
+}
+
+function rewindRecording() {
+  if (audioPlayer) { audioPlayer.currentTime = 0; }
+}
+
+function onRecordingStop() {
+  currentBlob = new Blob(chunks, { type: 'audio/webm' });
+  const url = URL.createObjectURL(currentBlob);
+  const duration = getElapsed();
+
+  const rec = {
+    id: Date.now(),
+    name: 'Demo ' + (recordings.length + 1),
+    duration,
+    url,
+    blob: currentBlob,
+    bars: [...frozenBarData],
+    bookmarks: [...bookmarks]
+  };
+  recordings.unshift(rec);
+  renderRecordingsList();
+
+  // Enable playback
+  audioPlayer = new Audio(url);
+  audioPlayer.onended = () => {
+    isPlaying = false;
+    document.getElementById('playBtn').textContent = '▶';
+  };
+  document.getElementById('playBtn').disabled = false;
+  document.getElementById('rewindBtn').disabled = false;
+  document.getElementById('downloadBtn').disabled = false;
+  document.getElementById('downloadBtn').style.opacity = '1';
+
+  drawWaveform();
+  drawRuler(duration);
+}
+
+function playRecording() {
+  if (!audioPlayer) return;
+  if (isPlaying) {
+    audioPlayer.pause();
+    isPlaying = false;
+    document.getElementById('playBtn').textContent = '▶';
+  } else {
+    audioPlayer.play();
+    isPlaying = true;
+    document.getElementById('playBtn').textContent = '⏹';
+  }
+}
+
+function downloadRecording() {
+  if (!currentBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(currentBlob);
+  a.download = 'chordnotes-demo.webm';
+  a.click();
+}
+
+// ── Bookmarks ──
+let bookmarkCount = 0;
+const SECTION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+function addBookmark() {
+  if (!isRecording) return;
+  const elapsed = getElapsed();
+  const label = SECTION_LABELS[bookmarkCount % SECTION_LABELS.length];
+  bookmarkCount++;
+  bookmarks.push({ elapsed, label, time: formatTime(elapsed) });
+  renderBookmarksList();
+  drawWaveform();
+}
+
+function removeBookmark(idx) {
+  bookmarks.splice(idx, 1);
+  renderBookmarksList();
+  drawWaveform();
+}
+
+function renderBookmarksList() {
+  const list = document.getElementById('bookmarksList');
+  if (!bookmarks.length) {
+    list.innerHTML = '<div class="empty-state">Bookmarks appear here.<br>Add them while recording.</div>';
+    return;
+  }
+  list.innerHTML = bookmarks.map((bm, i) => `
+    <div class="bookmark-item">
+      <div class="bm-marker"></div>
+      <div class="bm-info">
+        <div class="bm-name">Section ${bm.label}</div>
+        <div class="bm-time">${bm.time}</div>
+      </div>
+      <button class="bm-delete" onclick="removeBookmark(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+// ── Recordings list ──
+function renderRecordingsList() {
+  const list = document.getElementById('recordingsList');
+  if (!recordings.length) {
+    list.innerHTML = '<div class="empty-state">No recordings yet.<br>Hit record to start.</div>';
+    return;
+  }
+  list.innerHTML = recordings.map((r, i) => `
+    <div class="recording-item ${i === 0 ? 'active' : ''}" onclick="loadRecording(${i})">
+      <div class="rec-icon">🎵</div>
+      <div class="rec-info">
+        <div class="rec-name">${r.name}</div>
+        <div class="rec-meta">${formatTime(r.duration)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function loadRecording(idx) {
+  const rec = recordings[idx];
+  frozenBarData = rec.bars;
+  bookmarks = rec.bookmarks;
+  bookmarkCount = bookmarks.length;
+  pausedElapsed = rec.duration;
+  document.getElementById('timerDisplay').textContent = formatTimeFull(rec.duration);
+  audioPlayer = new Audio(rec.url);
+  audioPlayer.onended = () => {
+    isPlaying = false;
+    document.getElementById('playBtn').textContent = '▶';
+  };
+  document.getElementById('playBtn').disabled = false;
+  document.getElementById('rewindBtn').disabled = false;
+  renderBookmarksList();
+  drawWaveform();
+  drawRuler(rec.duration);
+}
+
+// ── Status ──
+function setStatus(type, text) {
+  const pill = document.getElementById('statusPill');
+  pill.className = 'status-pill' + (type === 'recording' ? ' recording' : '');
+  pill.innerHTML = `<span class="status-pill-dot"></span>${text}`;
+}
+
+// ── Mode ──
+function setMode(mode, btn) {
+  document.querySelectorAll('.mode-opt').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (mode === 'video') {
+    btn.parentElement.nextElementSibling && null;
+    // Video mode placeholder — would activate camera in full impl
+    setStatus('ready', 'Video mode');
+  }
+}
+</script>
+</body>
+</html>
